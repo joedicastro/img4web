@@ -57,20 +57,48 @@
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
 __date__ = "19/05/2009"
-__version__ = "0.2"
+__version__ = "0.3"
 
 try:
+    import sys
     import glob
     import os
     import platform
     import re
-    import sys
     from subprocess import Popen, PIPE, call
 except ImportError:
     # Checks the installation of the necessary python modules 
-    print('\n\n'.join(["An error found importing one or more modules:",
+    print((os.linesep * 2).join(["An error found importing one module:",
     str(sys.exc_info()[1]), "You need to install it", "Stopping..."]))
     sys.exit(-2)
+
+def best_unit_size(bytes_size):
+    """Get a size in bytes and convert it for the best unit for readability.
+    
+    Return a dictionary with two pair of keys/values:
+    
+    's' -- (float) Size of path converted to the best unit for easy read
+    'u' -- (str) The units (IEC) for s (from bytes(2^0) to YiB(2^80))
+    
+    """
+    for exp in range(0, 90 , 10):
+        bu_size = bytes_size / pow(2.0, exp)
+        if int(bu_size) < 2 ** 10:
+            unit = {0:'bytes', 10:'KiB', 20:'MiB', 30:'GiB', 40:'TiB', 50:'PiB',
+                    60:'EiB', 70:'ZiB', 80:'YiB'}[exp]
+            break
+    return {'s':bu_size, 'u':unit}
+
+def get_size(the_path):
+    """Get size of a directory tree or a file in bytes."""
+    path_size = 0
+    if os.path.isfile(the_path):
+        path_size = os.path.getsize(the_path)
+    for path, dirs, files in os.walk(the_path):
+        for fil in files:
+            filename = os.path.join(path, fil)
+            path_size += os.path.getsize(filename)
+    return path_size
 
 def check_execs_posix_win(*progs):
     """Check if the programs are installed.
@@ -118,21 +146,59 @@ def main(execs, windows):
     dest_path = os.path.join(os.getcwd(), 'processed')
     if not os.path.exists(dest_path):
         os.mkdir(dest_path)
+
     # Get the list of all .png an .jpg images in the current folder by type
     jpg, png = glob.glob('*.jp[e|g]*'), glob.glob('*.png')
+
+    # Get the original size of the images in bytes by type
+    org_jpg_sz = sum((get_size(orig_jpg) for orig_jpg in jpg))
+    org_png_sz = sum((get_size(orig_png) for orig_png in png))
+
     # Get the executable's names (and path for windows) of the needed programs 
     jpegtran = execs['jpegtran'] if windows else 'jpegtran'
     pngcrush = execs['pngcrush'] if windows else 'pngcrush'
+
     # Process all .jpg images
     for jpg_img in jpg:
         call([jpegtran, '-copy', 'none', '-optimize', '-perfect', '-outfile',
               os.path.join(dest_path, jpg_img), jpg_img])
+
     # Process all .png images
     for png_img in png:
         call([pngcrush, '-rem', 'alla', '-reduce', '-brute',
               png_img, os.path.join(dest_path, png_img)])
 
+    # Get the size of the processed images in bytes by type
+    os.chdir(dest_path)
+    prc_jpg = [j for j in glob.glob('*.jp[e|g]*') if j in jpg]
+    prc_png = [p for p in glob.glob('*.png') if p in png]
+    prc_jpg_sz = sum((get_size(new_j) for new_j in prc_jpg))
+    prc_png_sz = sum((get_size(new_p) for new_p in prc_png))
+
+    # Get a human readable size
+    ojs, ops = best_unit_size(org_jpg_sz), best_unit_size(org_png_sz)
+    pjs, pps = best_unit_size(prc_jpg_sz), best_unit_size(prc_png_sz)
+    tot_org = best_unit_size(org_jpg_sz + org_png_sz)
+    tot_prc = best_unit_size(prc_jpg_sz + prc_png_sz)
+    sjs = best_unit_size(org_jpg_sz - prc_jpg_sz)
+    sps = best_unit_size(org_png_sz - prc_png_sz)
+    tts = best_unit_size((org_jpg_sz + org_png_sz) - (prc_jpg_sz + prc_png_sz))
+
+    # print a little report    
+    print('{0}{1}{0}{2:^80}{0}{1}'.format(os.linesep, '=' * 80, 'Summary'))
+    print('         Original            Processed           Save' + os.linesep)
+    print('.jpgs:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
+          format(ojs['s'], ojs['u'], pjs['s'], pjs['u'], sjs['s'], sjs['u'],
+                 len(jpg), len(prc_jpg)))
+    print('.pngs:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
+          format(ops['s'], ops['u'], pps['s'], pps['u'], sps['s'], sps['u'],
+                 len(png), len(prc_png)))
+    print('-' * 80)
+    print('Total:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
+          format(tot_org['s'], tot_org['u'], tot_prc['s'], tot_prc['u'],
+                 tts['s'], tts['u'],
+                 (len(jpg) + len(png)), (len(prc_jpg) + len(prc_png))))
+
 if __name__ == "__main__":
     WIN_EXECS, WIN_OS = check_execs_posix_win('jpegtran', 'pngcrush')
     main(WIN_EXECS, WIN_OS)
-
