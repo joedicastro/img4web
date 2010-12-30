@@ -56,8 +56,8 @@
 
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
-__date__ = "19/05/2009"
-__version__ = "0.3"
+__date__ = "30/12/2010"
+__version__ = "0.4"
 
 try:
     import sys
@@ -73,16 +73,16 @@ except ImportError:
     sys.exit(-2)
 
 def best_unit_size(bytes_size):
-    """Get a size in bytes and convert it for the best unit for readability.
-    
-    Return a dictionary with two pair of keys/values:
-    
+    """Get a size in bytes & convert it to the best IEC prefix for readability.
+
+    Return a dictionary with three pair of keys/values:
+
     's' -- (float) Size of path converted to the best unit for easy read
-    'u' -- (str) The units (IEC) for s (from bytes(2^0) to YiB(2^80))
-    
+    'u' -- (str) The prefix (IEC) for s (from bytes(2^0) to YiB(2^80))
+
     """
     for exp in range(0, 90 , 10):
-        bu_size = bytes_size / pow(2.0, exp)
+        bu_size = abs(bytes_size) / pow(2.0, exp)
         if int(bu_size) < 2 ** 10:
             unit = {0:'bytes', 10:'KiB', 20:'MiB', 30:'GiB', 40:'TiB', 50:'PiB',
                     60:'EiB', 70:'ZiB', 80:'YiB'}[exp]
@@ -92,12 +92,12 @@ def best_unit_size(bytes_size):
 def get_size(the_path):
     """Get size of a directory tree or a file in bytes."""
     path_size = 0
-    if os.path.isfile(the_path):
-        path_size = os.path.getsize(the_path)
-    for path, dirs, files in os.walk(the_path):
-        for fil in files:
-            filename = os.path.join(path, fil)
-            path_size += os.path.getsize(filename)
+    for path, directories, files in os.walk(the_path):
+        for filename in files:
+            path_size += os.lstat(os.path.join(path, filename)).st_size
+        for directory in directories:
+            path_size += os.lstat(os.path.join(path, directory)).st_size
+    path_size += os.path.getsize(the_path)
     return path_size
 
 def check_execs_posix_win(*progs):
