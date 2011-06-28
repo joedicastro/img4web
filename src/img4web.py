@@ -30,10 +30,11 @@
 #
 # How it runs?
 #
-# Get a list of .jpg and .png images in the working directory (where script 
-# runs) and process all of them one by one. Store the processed images in a new
-# subdirectory named 'processed' (I know, I didn't killed myself worrying about 
-# the name)
+# By default get a list of .jpg and .png images in the working directory (where 
+# script runs) and process all of them one by one. Store the processed images in
+# a new subdirectory named 'processed' (I know, I didn't killed myself worrying 
+# about the name). Also you can specify the source & destination directories of 
+# the images.
 #===============================================================================
 
 #===============================================================================
@@ -56,21 +57,39 @@
 
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
-__date__ = "30/12/2010"
-__version__ = "0.4"
+__date__ = "28/06/2011"
+__version__ = "0.5"
 
 try:
-    import sys
-    import glob
     import os
+    import glob
     import platform
     import re
+    import sys
+    from argparse import ArgumentParser
     from subprocess import Popen, PIPE, call
 except ImportError:
     # Checks the installation of the necessary python modules 
     print((os.linesep * 2).join(["An error found importing one module:",
     str(sys.exc_info()[1]), "You need to install it", "Stopping..."]))
     sys.exit(-2)
+
+
+def arguments():
+    """Defines the command line arguments for the script."""
+    cur_dir = os.path.curdir
+    dest_dir = os.path.join(cur_dir, "processed")
+    main_desc = """Optimize .jpg and .png images for the web"""
+
+    parser = ArgumentParser(description=main_desc)
+    parser.add_argument("-s", "--src", dest="src", default=cur_dir, help="the "
+                        "source path. Current dir if none is provided")
+    parser.add_argument("-d", "--dst", dest="dst", default=dest_dir, help="the "
+                        "destination path. './processed/' if none is provided")
+    parser.add_argument("-v", "--version", action="version",
+                        version="%(prog)s {0}".format(__version__),
+                        help="show program's version number and exit")
+    return parser
 
 def best_unit_size(bytes_size):
     """Get a size in bytes & convert it to the best IEC prefix for readability.
@@ -100,54 +119,61 @@ def get_size(the_path):
     path_size += os.path.getsize(the_path)
     return path_size
 
-def check_execs_posix_win(*progs):
-    """Check if the programs are installed.
-    
-    Returns two values:
-    
-    (dict) windows_paths - a dictionary of executables/paths (keys/values)
-    (boolean) is_windows - True it's a Windows OS, False it's a *nix OS
-    
-    """
-    def not_found(app):
-        """ If executable is not installed, exit and report."""
-        msg = 'The {0} program is necessary to run this script'.format(app)
-        sys.exit(msg)
+def check_execs_posix_win(progs):
+    """Check if the program is installed.
 
-    windows_paths = {}
-    is_windows = True if platform.system() == 'Windows' else False
+    Returns one  dictionary with 1+n pair of key/values:
+
+    A fixed key/value:
+
+    "WinOS" -- (boolean) True it's a Windows OS, False it's a *nix OS
+
+    for each program in progs a key/value like this:
+
+    "program"  -- (str or boolean) The Windows executable path if founded else 
+                                   '' if it's Windows OS. If it's a *NIX OS True
+                                   if founded else False
+
+    """
+    execs = {'WinOS':True if platform.system() == 'Windows' else False}
     # get all the drive unit letters if the OS is Windows
     windows_drives = re.findall(r'(\w:)\\',
                                 Popen('fsutil fsinfo drives', stdout=PIPE).
-                                communicate()[0]) if is_windows else None
+                                communicate()[0]) if execs['WinOS'] else None
+
+    progs = [progs] if isinstance(progs, str) else progs
     for prog in progs:
-        if is_windows:
+        if execs['WinOS']:
             # Set all commands to search the executable in all drives
             win_cmds = ['dir /B /S {0}\*{1}.exe'.format(letter, prog) for
                         letter in windows_drives]
-            # Get the first location (usually in C:) of the all founded where 
-            # the executable exists
-            exe_paths = (''.join([Popen(cmd, stdout=PIPE, stderr=PIPE,
-                                        shell=True).communicate()[0] for
-                                        cmd in win_cmds])).split(os.linesep)[0]
-            # Assign the path to the executable or report not found if empty
-            windows_paths[prog] = exe_paths if exe_paths else not_found(prog)
+            # Get the first location (usually in C:) where the executable exists
+            for cmd in win_cmds:
+                execs[prog] = (Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True).
+                               communicate()[0].split(os.linesep)[0])
+                if execs[prog]:
+                    break
         else:
             try:
                 Popen([prog, '--help'], stdout=PIPE, stderr=PIPE)
+                execs[prog] = True
             except OSError:
-                not_found(prog)
-    return windows_paths, is_windows
+                execs[prog] = False
+    return execs
 
 
-def main(execs, windows):
+def main():
     """Main section."""
+    args = arguments().parse_args()
+
     # Check if exists the subdirectory for store the results, else create it
-    dest_path = os.path.join(os.getcwd(), 'processed')
-    if not os.path.exists(dest_path):
-        os.mkdir(dest_path)
+    src_path = os.path.abspath(args.src)
+    dst_path = os.path.abspath(args.dst)
+    if not os.path.exists(dst_path):
+        os.mkdir(dst_path)
 
     # Get the list of all .png an .jpg images in the current folder by type
+    os.chdir(src_path)
     jpg, png = glob.glob('*.jp[e|g]*'), glob.glob('*.png')
 
     # Get the original size of the images in bytes by type
@@ -155,21 +181,21 @@ def main(execs, windows):
     org_png_sz = sum((get_size(orig_png) for orig_png in png))
 
     # Get the executable's names (and path for windows) of the needed programs 
-    jpegtran = execs['jpegtran'] if windows else 'jpegtran'
-    pngcrush = execs['pngcrush'] if windows else 'pngcrush'
+    jpegtran = EXECS['jpegtran'] if EXECS['WinOS'] else 'jpegtran'
+    pngcrush = EXECS['pngcrush'] if EXECS['WinOS'] else 'pngcrush'
 
     # Process all .jpg images
     for jpg_img in jpg:
         call([jpegtran, '-copy', 'none', '-optimize', '-perfect', '-outfile',
-              os.path.join(dest_path, jpg_img), jpg_img])
+              os.path.join(dst_path, jpg_img), os.path.join(src_path, jpg_img)])
 
     # Process all .png images
     for png_img in png:
         call([pngcrush, '-rem', 'alla', '-reduce', '-brute',
-              png_img, os.path.join(dest_path, png_img)])
+              os.path.join(src_path, png_img), os.path.join(dst_path, png_img)])
 
     # Get the size of the processed images in bytes by type
-    os.chdir(dest_path)
+    os.chdir(dst_path)
     prc_jpg = [j for j in glob.glob('*.jp[e|g]*') if j in jpg]
     prc_png = [p for p in glob.glob('*.png') if p in png]
     prc_jpg_sz = sum((get_size(new_j) for new_j in prc_jpg))
@@ -200,5 +226,5 @@ def main(execs, windows):
                  (len(jpg) + len(png)), (len(prc_jpg) + len(prc_png))))
 
 if __name__ == "__main__":
-    WIN_EXECS, WIN_OS = check_execs_posix_win('jpegtran', 'pngcrush')
-    main(WIN_EXECS, WIN_OS)
+    EXECS = check_execs_posix_win(['jpegtran', 'pngcrush'])
+    main()
