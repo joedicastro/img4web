@@ -58,7 +58,7 @@
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
 __date__ = "28/06/2011"
-__version__ = "0.5"
+__version__ = "0.6"
 
 try:
     import os
@@ -86,6 +86,8 @@ def arguments():
                         "source path. Current dir if none is provided")
     parser.add_argument("-d", "--dst", dest="dst", default=dest_dir, help="the "
                         "destination path. './processed/' if none is provided")
+    parser.add_argument("--delete", dest="delete", action="store_true",
+                        help="delete the original image files")
     parser.add_argument("-v", "--version", action="version",
                         version="%(prog)s {0}".format(__version__),
                         help="show program's version number and exit")
@@ -209,6 +211,13 @@ def main():
     sjs = best_unit_size(org_jpg_sz - prc_jpg_sz)
     sps = best_unit_size(org_png_sz - prc_png_sz)
     tts = best_unit_size((org_jpg_sz + org_png_sz) - (prc_jpg_sz + prc_png_sz))
+
+    # Delete original image files if requested
+    if args.delete:
+        for to_trash_jpg in jpg:
+            os.remove(os.path.join(src_path, to_trash_jpg))
+        for to_trash_png in png:
+            os.remove(os.path.join(src_path, to_trash_png))
 
     # print a little report    
     print('{0}{1}{0}{2:^80}{0}{1}'.format(os.linesep, '=' * 80, 'Summary'))
