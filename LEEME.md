@@ -86,7 +86,7 @@ Luce así
 ## Como obtenerlo 
 
 El código está alojado en un repositorio de 
-[[http://selenic.com/mercurial|Mercurial]] (hg) en BitBucket, así que puedes 
+[Mercurial](http://selenic.com/mercurial) (hg) en BitBucket, así que puedes 
 clonarlo directamente así:
 
     hg clone http://bitbucket.org/joedicastro/img4web
