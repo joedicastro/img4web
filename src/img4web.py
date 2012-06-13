@@ -5,41 +5,41 @@
     img4web.py: optimize .jpg and .png images for the web
 """
 
-#===============================================================================
+#==============================================================================
 # This Script optimizes .jpg and .png images for the web.
 #
 # This follows the "Yahoo Best Practices for Speeding Up Your Web Site" about
-# optimize images. 
+# optimize images.
 # http://developer.yahoo.com/performance/rules.html#opt_images
-# 
+#
 # Uses the program pngcrush and the command jpegtran of the libjpeg library
-# 
+#
 # pngcrush, http://pmt.sourceforge.net/pngcrush/
 # libjpg, http://www.ijg.org/
 #
-# In linux they are usually available in the most popular distribution 
-# repositories, e.g.: 
+# In linux they are usually available in the most popular distribution
+# repositories, e.g.:
 # In debian, Ubuntu as these packages:
 # pngcrush
 # libjpeg-progs
 #
-# In Windows pngcrush can be downloaded at 
+# In Windows pngcrush can be downloaded at
 # http://sourceforge.net/projects/pmt/files/pngcrush-executables/
-# and libjpeg can be downloaded (as gnuwin32) at 
+# and libjpeg can be downloaded (as gnuwin32) at
 # http://gnuwin32.sourceforge.net/downlinks/jpeg.php
 #
 # How it runs?
 #
-# By default get a list of .jpg and .png images in the working directory (where 
-# script runs) and process all of them one by one. Store the processed images in
-# a new subdirectory named 'processed' (I know, I didn't killed myself worrying 
-# about the name). Also you can specify the source & destination directories of 
-# the images.
-#===============================================================================
+# By default get a list of .jpg and .png images in the working directory (where
+# script runs) and process all of them one by one. Store the processed images
+# in a new subdirectory named 'processed' (I know, I didn't killed myself
+# worrying about the name). Also you can specify the source & destination
+# directories of the images.
+#==============================================================================
 
-#===============================================================================
+#==============================================================================
 #    Copyright 2009 joe di castro <joe@joedicastro.com>
-#       
+#
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
@@ -53,7 +53,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-#===============================================================================
+#==============================================================================
 
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
@@ -69,7 +69,7 @@ try:
     from argparse import ArgumentParser
     from subprocess import Popen, PIPE, call
 except ImportError:
-    # Checks the installation of the necessary python modules 
+    # Checks the installation of the necessary python modules
     print((os.linesep * 2).join(["An error found importing one module:",
     str(sys.exc_info()[1]), "You need to install it", "Stopping..."]))
     sys.exit(-2)
@@ -84,14 +84,16 @@ def arguments():
     parser = ArgumentParser(description=main_desc)
     parser.add_argument("-s", "--src", dest="src", default=cur_dir, help="the "
                         "source path. Current dir if none is provided")
-    parser.add_argument("-d", "--dst", dest="dst", default=dest_dir, help="the "
-                        "destination path. './processed/' if none is provided")
+    parser.add_argument("-d", "--dst", dest="dst", default=dest_dir,
+                        help="the destination path. './processed/' if none is "
+                        "provided")
     parser.add_argument("--delete", dest="delete", action="store_true",
                         help="delete the original image files")
     parser.add_argument("-v", "--version", action="version",
                         version="%(prog)s {0}".format(__version__),
                         help="show program's version number and exit")
     return parser
+
 
 def best_unit_size(bytes_size):
     """Get a size in bytes & convert it to the best IEC prefix for readability.
@@ -102,13 +104,14 @@ def best_unit_size(bytes_size):
     'u' -- (str) The prefix (IEC) for s (from bytes(2^0) to YiB(2^80))
 
     """
-    for exp in range(0, 90 , 10):
+    for exp in range(0, 90, 10):
         bu_size = abs(bytes_size) / pow(2.0, exp)
         if int(bu_size) < 2 ** 10:
-            unit = {0:'bytes', 10:'KiB', 20:'MiB', 30:'GiB', 40:'TiB', 50:'PiB',
-                    60:'EiB', 70:'ZiB', 80:'YiB'}[exp]
+            unit = {0: 'bytes', 10: 'KiB', 20: 'MiB', 30: 'GiB', 40: 'TiB',
+                    50: 'PiB', 60: 'EiB', 70: 'ZiB', 80: 'YiB'}[exp]
             break
-    return {'s':bu_size, 'u':unit}
+    return {'s': bu_size, 'u': unit}
+
 
 def get_size(the_path):
     """Get size of a directory tree or a file in bytes."""
@@ -121,6 +124,7 @@ def get_size(the_path):
     path_size += os.path.getsize(the_path)
     return path_size
 
+
 def check_execs_posix_win(progs):
     """Check if the program is installed.
 
@@ -132,12 +136,12 @@ def check_execs_posix_win(progs):
 
     for each program in progs a key/value like this:
 
-    "program"  -- (str or boolean) The Windows executable path if founded else 
-                                   '' if it's Windows OS. If it's a *NIX OS True
-                                   if founded else False
+    "program"  -- (str or boolean) The Windows executable path if founded else
+                                   '' if it's Windows OS. If it's a *NIX OS
+                                   True if founded else False
 
     """
-    execs = {'WinOS':True if platform.system() == 'Windows' else False}
+    execs = {'WinOS':  True if platform.system() == 'Windows' else False}
     # get all the drive unit letters if the OS is Windows
     windows_drives = re.findall(r'(\w:)\\',
                                 Popen('fsutil fsinfo drives', stdout=PIPE).
@@ -149,7 +153,7 @@ def check_execs_posix_win(progs):
             # Set all commands to search the executable in all drives
             win_cmds = ['dir /B /S {0}\*{1}.exe'.format(letter, prog) for
                         letter in windows_drives]
-            # Get the first location (usually in C:) where the executable exists
+            # Get the first location (usually C:) where the executable exists
             for cmd in win_cmds:
                 execs[prog] = (Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True).
                                communicate()[0].split(os.linesep)[0])
@@ -182,19 +186,21 @@ def main():
     org_jpg_sz = sum((get_size(orig_jpg) for orig_jpg in jpg))
     org_png_sz = sum((get_size(orig_png) for orig_png in png))
 
-    # Get the executable's names (and path for windows) of the needed programs 
+    # Get the executable's names (and path for windows) of the needed programs
     jpegtran = EXECS['jpegtran'] if EXECS['WinOS'] else 'jpegtran'
     pngcrush = EXECS['pngcrush'] if EXECS['WinOS'] else 'pngcrush'
 
     # Process all .jpg images
     for jpg_img in jpg:
         call([jpegtran, '-copy', 'none', '-optimize', '-perfect', '-outfile',
-              os.path.join(dst_path, jpg_img), os.path.join(src_path, jpg_img)])
+              os.path.join(dst_path, jpg_img),
+              os.path.join(src_path, jpg_img)])
 
     # Process all .png images
     for png_img in png:
         call([pngcrush, '-rem', 'alla', '-reduce', '-brute',
-              os.path.join(src_path, png_img), os.path.join(dst_path, png_img)])
+              os.path.join(src_path, png_img),
+              os.path.join(dst_path, png_img)])
 
     # Get the size of the processed images in bytes by type
     os.chdir(dst_path)
@@ -219,7 +225,7 @@ def main():
         for to_trash_png in png:
             os.remove(os.path.join(src_path, to_trash_png))
 
-    # print a little report    
+    # print a little report
     print('{0}{1}{0}{2:^80}{0}{1}'.format(os.linesep, '=' * 80, 'Summary'))
     print('         Original            Processed           Save' + os.linesep)
     print('.jpgs:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
