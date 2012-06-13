@@ -12,21 +12,26 @@
 # optimize images.
 # http://developer.yahoo.com/performance/rules.html#opt_images
 #
-# Uses the program pngcrush and the command jpegtran of the libjpeg library
+# Uses the program pngcrush, the command jpegtran of the libjpeg library and
+# the program gifsicle
 #
 # pngcrush, http://pmt.sourceforge.net/pngcrush/
 # libjpg, http://www.ijg.org/
+# gifsicle, http://www.lcdf.org/gifsicle/
 #
 # In linux they are usually available in the most popular distribution
 # repositories, e.g.:
 # In debian, Ubuntu as these packages:
 # pngcrush
 # libjpeg-progs
+# gifsicle
 #
 # In Windows pngcrush can be downloaded at
 # http://sourceforge.net/projects/pmt/files/pngcrush-executables/
-# and libjpeg can be downloaded (as gnuwin32) at
+# libjpeg can be downloaded (as gnuwin32) at
 # http://gnuwin32.sourceforge.net/downlinks/jpeg.php
+# and gifsicle can be downloaded at
+# http://www.lcdf.org/gifsicle/
 #
 # How it runs?
 #
@@ -57,8 +62,8 @@
 
 __author__ = "joe di castro - joe@joedicastro.com"
 __license__ = "GNU General Public License version 2"
-__date__ = "28/06/2011"
-__version__ = "0.6"
+__date__ = "13/06/2012"
+__version__ = "0.7"
 
 try:
     import os
@@ -87,6 +92,8 @@ def arguments():
     parser.add_argument("-d", "--dst", dest="dst", default=dest_dir,
                         help="the destination path. './processed/' if none is "
                         "provided")
+    parser.add_argument("--exif", dest="exif", action="store_true",
+                        help="preserve the EXIF data from jpeg files")
     parser.add_argument("--delete", dest="delete", action="store_true",
                         help="delete the original image files")
     parser.add_argument("-v", "--version", action="version",
@@ -178,21 +185,27 @@ def main():
     if not os.path.exists(dst_path):
         os.mkdir(dst_path)
 
-    # Get the list of all .png an .jpg images in the current folder by type
+    # Get the list of all .png, .jpg and .gif images in the current folder by
+    # type
     os.chdir(src_path)
-    jpg, png = glob.glob('*.jp[e|g]*'), glob.glob('*.png')
+    jpg = glob.glob('*.jp[e|g]*')
+    png = glob.glob('*.png')
+    gif = glob.glob('*.gif')
 
     # Get the original size of the images in bytes by type
     org_jpg_sz = sum((get_size(orig_jpg) for orig_jpg in jpg))
     org_png_sz = sum((get_size(orig_png) for orig_png in png))
+    org_gif_sz = sum((get_size(orig_gif) for orig_gif in gif))
 
     # Get the executable's names (and path for windows) of the needed programs
     jpegtran = EXECS['jpegtran'] if EXECS['WinOS'] else 'jpegtran'
     pngcrush = EXECS['pngcrush'] if EXECS['WinOS'] else 'pngcrush'
+    gifsicle = EXECS['gifsicle'] if EXECS['WinOS'] else 'gifsicle'
+    exif = 'all' if args.exif else 'none'
 
     # Process all .jpg images
     for jpg_img in jpg:
-        call([jpegtran, '-copy', 'none', '-optimize', '-perfect', '-outfile',
+        call([jpegtran, '-copy', exif, '-optimize', '-perfect', '-outfile',
               os.path.join(dst_path, jpg_img),
               os.path.join(src_path, jpg_img)])
 
@@ -202,21 +215,37 @@ def main():
               os.path.join(src_path, png_img),
               os.path.join(dst_path, png_img)])
 
+    # Process all .gif images (only optimize animated ones)
+    for gif_img in gif:
+        call([gifsicle, '-O2', os.path.join(src_path, gif_img), "--output",
+              os.path.join(dst_path, gif_img)])
+
     # Get the size of the processed images in bytes by type
     os.chdir(dst_path)
     prc_jpg = [j for j in glob.glob('*.jp[e|g]*') if j in jpg]
     prc_png = [p for p in glob.glob('*.png') if p in png]
+    prc_gif = [g for g in glob.glob('*.gif') if g in gif]
     prc_jpg_sz = sum((get_size(new_j) for new_j in prc_jpg))
     prc_png_sz = sum((get_size(new_p) for new_p in prc_png))
+    prc_gif_sz = sum((get_size(new_g) for new_g in prc_gif))
 
     # Get a human readable size
-    ojs, ops = best_unit_size(org_jpg_sz), best_unit_size(org_png_sz)
-    pjs, pps = best_unit_size(prc_jpg_sz), best_unit_size(prc_png_sz)
-    tot_org = best_unit_size(org_jpg_sz + org_png_sz)
-    tot_prc = best_unit_size(prc_jpg_sz + prc_png_sz)
+    ojs = best_unit_size(org_jpg_sz)
+    ops = best_unit_size(org_png_sz)
+    ogs = best_unit_size(org_gif_sz)
+
+    pjs = best_unit_size(prc_jpg_sz)
+    pps = best_unit_size(prc_png_sz)
+    pgs = best_unit_size(prc_gif_sz)
+
+    tot_org = best_unit_size(org_jpg_sz + org_png_sz + org_gif_sz)
+    tot_prc = best_unit_size(prc_jpg_sz + prc_png_sz + prc_gif_sz)
+
     sjs = best_unit_size(org_jpg_sz - prc_jpg_sz)
     sps = best_unit_size(org_png_sz - prc_png_sz)
-    tts = best_unit_size((org_jpg_sz + org_png_sz) - (prc_jpg_sz + prc_png_sz))
+    sgs = best_unit_size(org_gif_sz - prc_gif_sz)
+    tts = best_unit_size((org_jpg_sz + org_png_sz + org_gif_sz) -
+                         (prc_jpg_sz + prc_png_sz + prc_gif_sz))
 
     # Delete original image files if requested
     if args.delete:
@@ -224,6 +253,8 @@ def main():
             os.remove(os.path.join(src_path, to_trash_jpg))
         for to_trash_png in png:
             os.remove(os.path.join(src_path, to_trash_png))
+        for to_trash_gif in gif:
+            os.remove(os.path.join(src_path, to_trash_gif))
 
     # print a little report
     print('{0}{1}{0}{2:^80}{0}{1}'.format(os.linesep, '=' * 80, 'Summary'))
@@ -234,12 +265,16 @@ def main():
     print('.pngs:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
           format(ops['s'], ops['u'], pps['s'], pps['u'], sps['s'], sps['u'],
                  len(png), len(prc_png)))
+    print('.gifs:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
+          format(ogs['s'], ogs['u'], pgs['s'], pgs['u'], sgs['s'], sgs['u'],
+                 len(gif), len(prc_gif)))
     print('-' * 80)
     print('Total:   ({6:3}){0:>6.2f} {1:8}({7:3}){2:>6.2f} {3:8}{4:>6.2f} {5}'.
           format(tot_org['s'], tot_org['u'], tot_prc['s'], tot_prc['u'],
                  tts['s'], tts['u'],
-                 (len(jpg) + len(png)), (len(prc_jpg) + len(prc_png))))
+                 (len(jpg) + len(png) + len(gif)),
+                 (len(prc_jpg) + len(prc_png) + len(prc_gif))))
 
 if __name__ == "__main__":
-    EXECS = check_execs_posix_win(['jpegtran', 'pngcrush'])
+    EXECS = check_execs_posix_win(['jpegtran', 'pngcrush', 'gifsicle'])
     main()
