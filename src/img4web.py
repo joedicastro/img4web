@@ -76,7 +76,7 @@ try:
 except ImportError:
     # Checks the installation of the necessary python modules
     print((os.linesep * 2).join(["An error found importing one module:",
-    str(sys.exc_info()[1]), "You need to install it", "Stopping..."]))
+          str(sys.exc_info()[1]), "You need to install it", "Stopping..."]))
     sys.exit(-2)
 
 
@@ -162,7 +162,7 @@ def check_execs_posix_win(progs):
                         letter in windows_drives]
             # Get the first location (usually C:) where the executable exists
             for cmd in win_cmds:
-                execs[prog] = (Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True).
+                execs[prog] = (Popen(cmd, stdout=PIPE, stderr=PIPE, shell=1).
                                communicate()[0].split(os.linesep)[0])
                 if execs[prog]:
                     break
