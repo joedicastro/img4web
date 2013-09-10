@@ -89,12 +89,7 @@ It looks like that
 
 ## How to get them
 
-The code is hosted in a [Mercurial](http://selenic.com/mercurial) (hg)
-repository at BitBucket, use this to get a clone:
-
-    hg clone http://bitbucket.org/joedicastro/img4web
-
-Also is hosted in a Git repository at GitHub, use this to get a clone:
+The code is hosted in a Git repository at GitHub, use this to get a clone:
 
     git clone git://github.com/joedicastro/img4web.git
 
